@@ -1,0 +1,5 @@
+# Ignore specific directories
+embeddings/
+processed_data/
+selected/
+dataset/
