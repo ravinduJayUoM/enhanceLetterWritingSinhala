@@ -1,5 +1,12 @@
 # Ignore specific directories
-embeddings/
-processed_data/
-selected/
-dataset/
+/embeddings/
+/processed_data/
+/selected/
+/dataset/
+/rag/faiss_index/
+/rag/__pycache__/
+/rag/models/best_model/
+/rag/venv/
+/rag/sinhala_letters.csv
+/ui/node_modules/
+/venvm/
