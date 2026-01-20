@@ -9,4 +9,5 @@
 /rag/venv/
 /rag/sinhala_letters.csv
 /ui/node_modules/
-/venvm/
+/venvm/test_azure_connection.py
+tests/test_azure_openai.py
