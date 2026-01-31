@@ -945,38 +945,28 @@ async def process_query(query: UserQuery):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate_letter/")
-async def generate_letter(request: LetterRequest):
+def generate_letter(request: LetterRequest):
     """Generate a letter based on the enhanced prompt."""
     if rag_processor is None:
         raise HTTPException(status_code=500, detail="RAG processor not initialized")
     
     try:
+        print(f"Generating letter with prompt length: {len(request.enhanced_prompt)} characters")
+        
         # Use the pre-initialized LLM from rag_processor instead of creating a new one
         # This prevents connection issues and reuses the existing Ollama connection
-        import asyncio
-        from functools import partial
-        
         letter_prompt = ChatPromptTemplate.from_template("{enhanced_prompt}")
         letter_chain = letter_prompt | rag_processor.llm | StrOutputParser()
         
-        # Invoke with timeout to prevent hanging
-        async def invoke_with_timeout():
-            loop = asyncio.get_event_loop()
-            return await asyncio.wait_for(
-                loop.run_in_executor(
-                    None, 
-                    partial(letter_chain.invoke, {"enhanced_prompt": request.enhanced_prompt})
-                ),
-                timeout=120.0  # 120 second timeout
-            )
-        
-        letter = await invoke_with_timeout()
+        print("Invoking LLM chain...")
+        letter = letter_chain.invoke({"enhanced_prompt": request.enhanced_prompt})
+        print(f"Letter generated successfully, length: {len(letter)} characters")
         
         return {"generated_letter": letter}
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="Letter generation timed out. The prompt may be too long or the model is overloaded.")
     except Exception as e:
         print(f"Error generating letter: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Letter generation failed: {str(e)}")
 
 @app.get("/search/")
