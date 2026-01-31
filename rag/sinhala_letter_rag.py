@@ -65,9 +65,7 @@ def get_llm(temperature: float = 0.3):
             return Ollama(
                 model=config.llm.ollama_model,
                 base_url=config.llm.ollama_base_url,
-                temperature=temperature,
-                timeout=60.0,  # Add 60 second timeout to prevent hanging
-                request_timeout=60.0  # Request-level timeout
+                temperature=temperature
             )
         except ImportError:
             print("ERROR: langchain-community not installed. Run: pip install langchain-community")
@@ -101,9 +99,7 @@ def get_llm(temperature: float = 0.3):
                 api_key=azure_key,
                 azure_deployment=azure_deployment,
                 api_version=config.llm.azure_api_version,
-                temperature=temperature,
-                timeout=120.0,  # Add 120 second timeout
-                request_timeout=120.0  # Request-level timeout
+                temperature=temperature
             )
         else:
             print("ERROR: Azure OpenAI credentials not set")
