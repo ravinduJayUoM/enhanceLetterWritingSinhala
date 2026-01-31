@@ -65,7 +65,9 @@ def get_llm(temperature: float = 0.3):
             return Ollama(
                 model=config.llm.ollama_model,
                 base_url=config.llm.ollama_base_url,
-                temperature=temperature
+                temperature=temperature,
+                timeout=60.0,  # Add 60 second timeout to prevent hanging
+                request_timeout=60.0  # Request-level timeout
             )
         except ImportError:
             print("ERROR: langchain-community not installed. Run: pip install langchain-community")
@@ -100,6 +102,8 @@ def get_llm(temperature: float = 0.3):
                 azure_deployment=azure_deployment,
                 api_version=config.llm.azure_api_version,
                 temperature=temperature,
+                timeout=120.0,  # Add 120 second timeout
+                request_timeout=120.0  # Request-level timeout
             )
         else:
             print("ERROR: Azure OpenAI credentials not set")
@@ -951,16 +955,33 @@ async def generate_letter(request: LetterRequest):
         raise HTTPException(status_code=500, detail="RAG processor not initialized")
     
     try:
-        # Generate the letter using the LLM
-        llm = get_llm(temperature=0.3)
-        letter_prompt = ChatPromptTemplate.from_template("{enhanced_prompt}")
-        letter_chain = letter_prompt | llm | StrOutputParser()
+        # Use the pre-initialized LLM from rag_processor instead of creating a new one
+        # This prevents connection issues and reuses the existing Ollama connection
+        import asyncio
+        from functools import partial
         
-        letter = letter_chain.invoke({"enhanced_prompt": request.enhanced_prompt})
+        letter_prompt = ChatPromptTemplate.from_template("{enhanced_prompt}")
+        letter_chain = letter_prompt | rag_processor.llm | StrOutputParser()
+        
+        # Invoke with timeout to prevent hanging
+        async def invoke_with_timeout():
+            loop = asyncio.get_event_loop()
+            return await asyncio.wait_for(
+                loop.run_in_executor(
+                    None, 
+                    partial(letter_chain.invoke, {"enhanced_prompt": request.enhanced_prompt})
+                ),
+                timeout=120.0  # 120 second timeout
+            )
+        
+        letter = await invoke_with_timeout()
         
         return {"generated_letter": letter}
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Letter generation timed out. The prompt may be too long or the model is overloaded.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error generating letter: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Letter generation failed: {str(e)}")
 
 @app.get("/search/")
 async def search_kb(query: str = Query(...), top_k: int = Query(3)):
