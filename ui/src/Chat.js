@@ -2,6 +2,36 @@ import React, { useState } from "react";
 
 const API_URL = "http://localhost:8000";
 
+function StarRating({ onRate }) {
+  const [hovered, setHovered] = useState(0);
+  const [selected, setSelected] = useState(0);
+
+  const handleClick = (star) => {
+    setSelected(star);
+    onRate(star);
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 4, cursor: "pointer", fontSize: 28 }}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          onMouseEnter={() => setHovered(star)}
+          onMouseLeave={() => setHovered(0)}
+          onClick={() => handleClick(star)}
+          style={{
+            color: star <= (hovered || selected) ? "#f59e0b" : "#d1d5db",
+            transition: "color 0.15s",
+            pointerEvents: selected ? "none" : "auto",
+          }}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function Chat() {
   const [messages, setMessages] = useState([
     { sender: "system", text: "ඔබගේ ලිපි ඉල්ලීම සිංහලෙන් ඇතුළත් කරන්න." }
@@ -9,6 +39,8 @@ function Chat() {
   const [input, setInput] = useState("");
   const [waiting, setWaiting] = useState(false);
   const [letter, setLetter] = useState(null);
+  const [letterCategory, setLetterCategory] = useState("general");
+  const [ratingStatus, setRatingStatus] = useState(null); // null | "saving" | "saved" | "error"
 
   // Store enhanced prompt for letter generation
   const [enhancedPrompt, setEnhancedPrompt] = useState("");
@@ -19,6 +51,8 @@ function Chat() {
     setMessages((msgs) => [...msgs, { sender: "user", text: input }]);
     setWaiting(true);
     setOriginalPrompt(input);
+    setLetter(null);
+    setRatingStatus(null);
 
     // Send to /process_query/
     const res = await fetch(`${API_URL}/process_query/`, {
@@ -60,6 +94,7 @@ function Chat() {
       });
       const data2 = await res2.json();
       setEnhancedPrompt(data2.enhanced_prompt);
+      setLetterCategory(data2.extracted_info?.letter_type || "general");
       setMessages((msgs) => [
         ...msgs,
         { sender: "system", text: "ලිපිය ජනනය කරමින්..." }
@@ -67,6 +102,7 @@ function Chat() {
       await generateLetter(input, data2.enhanced_prompt);
     } else if (data.status === "complete") {
       setEnhancedPrompt(data.enhanced_prompt);
+      setLetterCategory(data.extracted_info?.letter_type || "general");
       setMessages((msgs) => [
         ...msgs,
         { sender: "system", text: "ලිපිය ජනනය කරමින්..." }
@@ -95,6 +131,30 @@ function Chat() {
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !waiting) sendMessage();
+  };
+
+  const handleRate = async (stars) => {
+    setRatingStatus("saving");
+    try {
+      const res = await fetch(`${API_URL}/rate_letter/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          letter_content: letter,
+          rating: stars,
+          original_prompt: originalPrompt,
+          letter_category: letterCategory,
+        }),
+      });
+      const data = await res.json();
+      if (data.added_to_index) {
+        setRatingStatus("indexed");
+      } else {
+        setRatingStatus("saved");
+      }
+    } catch {
+      setRatingStatus("error");
+    }
   };
 
   return (
@@ -152,6 +212,29 @@ function Chat() {
         }}>
           <h3>📝 ජනනය වූ ලිපිය</h3>
           <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{letter}</pre>
+
+          <div style={{ marginTop: 20, borderTop: "1px solid #ffe082", paddingTop: 16 }}>
+            <p style={{ margin: "0 0 8px", fontWeight: 600 }}>මෙම ලිපිය ඔබට කෙතරම් ප්‍රයෝජනවත් විය? ⭐</p>
+            {ratingStatus === null && <StarRating onRate={handleRate} />}
+            {ratingStatus === "saving" && (
+              <span style={{ color: "#6b7280" }}>⏳ ඔබගේ ශ්‍රේණිගත කිරීම සුරකිමින්...</span>
+            )}
+            {ratingStatus === "indexed" && (
+              <span style={{ color: "#16a34a", fontWeight: 600 }}>
+                ✅ ස්තූතියි! ලිපිය දත්ත ගබඩාවට සාර්ථකව එකතු කරන ලදී.
+              </span>
+            )}
+            {ratingStatus === "saved" && (
+              <span style={{ color: "#2563eb", fontWeight: 600 }}>
+                ✅ ස්තූතිවන්ත යි! ඔබගේ ශ්‍රේණිගත කිරීම සුරැකිණි.
+              </span>
+            )}
+            {ratingStatus === "error" && (
+              <span style={{ color: "#dc2626" }}>
+                ❌ ශ්‍රේණිගත කිරීම සුරැකීමේ දෝෂයක් ඇති විය. කරුණාකර නැවත උත්සාහ කරන්න.
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>

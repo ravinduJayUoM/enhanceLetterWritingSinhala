@@ -1,12 +1,8 @@
 import React from "react";
-import Chat from "./Chat";
+import LetterChat from "./LetterChat";
 
 function App() {
-  return (
-    <div>
-      <Chat />
-    </div>
-  );
+  return <LetterChat />;
 }
 
 export default App;
