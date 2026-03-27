@@ -21,6 +21,7 @@ class LLMProvider(Enum):
     AZURE_OPENAI = "azure_openai"
     OLLAMA = "ollama"  # Local models via Ollama
     HUGGINGFACE = "huggingface"  # Local HuggingFace models
+    GEMINI = "gemini"  # Google Gemini via langchain-google-genai
 
 
 @dataclass
@@ -53,7 +54,7 @@ class EmbeddingConfig:
 class RerankerConfig:
     """Configuration for cross-encoder reranker."""
     enabled: bool = False
-    model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"  # Multilingual fallback
+    model_name: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"  # Multilingual cross-encoder
     # For fine-tuned model:
     # model_path: str = "models/reranker/best_model"
     model_path: Optional[str] = None
@@ -64,32 +65,51 @@ class RerankerConfig:
 @dataclass
 class LLMConfig:
     """Configuration for LLM generation."""
-    provider: LLMProvider = LLMProvider.OLLAMA  # Changed default to Ollama (free!)
-    
+    provider: LLMProvider = LLMProvider.OLLAMA
+
+    # Per-step provider overrides.
+    # Set to None to fall back to `provider` above for both steps.
+    # Example: Gemini for fast/accurate extraction, Aya for local generation:
+    #   extraction_provider: LLMProvider = LLMProvider.GEMINI
+    #   generation_provider: LLMProvider = LLMProvider.OLLAMA
+    extraction_provider: Optional[LLMProvider] = LLMProvider.GEMINI
+    generation_provider: Optional[LLMProvider] = LLMProvider.GEMINI
+
     # OpenAI settings
     openai_model: str = "gpt-4"
     openai_temperature: float = 0.3
-    
+
     # Azure OpenAI settings (for production)
     azure_endpoint: Optional[str] = None
     azure_deployment_name: Optional[str] = None
     azure_api_version: str = "2024-02-15-preview"
-    
+
     # Ollama settings (local, free)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "aya:8b"  # Aya 8B - trained on 101 languages including Sinhala
     ollama_temperature: float = 0.3
-    
+
     # HuggingFace settings (local models)
     huggingface_model: str = "meta-llama/Llama-3.2-3B-Instruct"
     huggingface_temperature: float = 0.3
-    
+
+    # Google Gemini settings
+    # Set the API key via the GEMINI_API_KEY environment variable.
+    # Free-tier model options (in order of quota generosity):
+    #   gemini-1.5-flash-8b  — highest free quota
+    #   gemini-1.5-flash
+    #   gemini-2.0-flash
+    gemini_model: str = "gemini-2.5-flash"  # Swap to any Gemini model name here
+    gemini_api_key: Optional[str] = None
+
     def __post_init__(self):
-        """Load Azure settings from environment if available."""
+        """Load provider credentials from environment variables if not set."""
         if self.azure_endpoint is None:
             self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         if self.azure_deployment_name is None:
             self.azure_deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        if self.gemini_api_key is None:
+            self.gemini_api_key = os.getenv("GEMINI_API_KEY")
 
 
 @dataclass
@@ -100,7 +120,7 @@ class DataConfig:
     # Data paths - relative to project root
     data_dir: str = "data"  # Data folder relative to base_dir parent
     csv_filename: str = "sinhala_letters.csv"
-    csv_v2_filename: str = "sinhala_letters_v2.csv"  # New schema
+    csv_v2_filename: str = "sinhala_letters_v3.csv"  # New schema
     
     # Vector store settings
     vector_store_type: VectorStoreType = VectorStoreType.FAISS

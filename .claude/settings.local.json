@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/MSC/code/enhanceLetterWritingSinhala -type f -name docker* -o -name docker-compose* -o -name *.dockerfile)",
+      "Bash(find /c/MSC/code/enhanceLetterWritingSinhala -type f \\\\\\(-name nginx.conf -o -name *.conf -o -name apache* \\\\\\))",
+      "Bash(find /c/MSC/code/enhanceLetterWritingSinhala -type f \\\\\\(-name *.sh -o -name deploy* -o -name startup* \\\\\\))",
+      "Bash(find /c/MSC/code/enhanceLetterWritingSinhala/ui -maxdepth 2 -type f \\\\\\(-name *.jsx -o -name *.tsx -o -name *.env* \\\\\\))"
+    ]
+  }
+}

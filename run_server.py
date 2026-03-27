@@ -9,4 +9,4 @@ sys.path.insert(0, rag_path)
 
 if __name__ == "__main__":
     os.chdir(rag_path)  # Change to rag directory for relative path resolution
-    uvicorn.run("sinhala_letter_rag:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
