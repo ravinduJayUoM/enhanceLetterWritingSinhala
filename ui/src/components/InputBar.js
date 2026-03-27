@@ -61,7 +61,7 @@ export default function InputBar({ value, onChange, onSend, disabled, placeholde
         onClick={onSend}
         disabled={disabled}
       >
-        යවන්න
+        Submit කරන්න
       </button>
     </div>
   );

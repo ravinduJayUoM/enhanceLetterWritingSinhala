@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const API_URL = "http://localhost:8000";
+const API_URL = "http://34.87.52.138:8000";
 
 function StarRating({ onRate }) {
   const [hovered, setHovered] = useState(0);
@@ -199,7 +199,7 @@ function Chat() {
             marginLeft: 8, padding: "10px 18px", borderRadius: 8, background: "#1976d2", color: "#fff", border: "none"
           }}
         >
-          යවන්න
+          Submit කරන්න
         </button>
       </div>
       {letter && (

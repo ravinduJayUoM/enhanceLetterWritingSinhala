@@ -40,6 +40,19 @@ class PromptBuilder:
 
         examples_str = "\n\n---\n\n".join(doc.page_content for doc in retrieved_docs)
 
+        # Build the event details block for invitations
+        event_details = ""
+        if info.get("letter_type") == "invitation":
+            event_parts = []
+            if info.get("event_date"):
+                event_parts.append(f"- Event Date:  {info['event_date']}")
+            if info.get("event_time"):
+                event_parts.append(f"- Event Time:  {info['event_time']}")
+            if info.get("event_venue"):
+                event_parts.append(f"- Event Venue: {info['event_venue']}")
+            if event_parts:
+                event_details = "\n" + "\n".join(event_parts)
+
         prompt = f"""You are a Sinhala formal letter writing assistant. \
 Generate a complete formal letter IN SINHALA based on the information and examples below.
 
@@ -54,7 +67,7 @@ Letter Details:
 - Sender:             {info.get('sender', '')}
 - Subject:            {info.get('subject', '')}
 - Purpose:            {info.get('purpose', '')}
-- Additional Details: {info.get('details', '')}
+- Additional Details: {info.get('details', '')}{event_details}
 
 Reference Letter Examples (use these for structure and formal language):
 {examples_str}

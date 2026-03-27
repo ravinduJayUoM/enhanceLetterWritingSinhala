@@ -3,7 +3,7 @@ import MessageList from "./components/MessageList";
 import InputBar from "./components/InputBar";
 import LetterDisplay from "./components/LetterDisplay";
 
-const API_URL = "http://localhost:8000";
+const API_URL = "http://34.87.52.138:8000";
 
 // ---------------------------------------------------------------------------
 // Stages of the conversation
@@ -201,7 +201,7 @@ export default function LetterChat() {
       }}
     >
       <h2 style={{ textAlign: "center", color: "#1a237e", marginBottom: 20 }}>
-        සිංහල ලිපි ජනකය
+        Sinhala Letters LK
       </h2>
 
       <MessageList messages={messages} waiting={waiting} />

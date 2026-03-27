@@ -58,7 +58,9 @@ class Pipeline:
         if not missing_info:
             missing_fields = self.gap_filler.identify_missing(extracted)
             if missing_fields:
-                questions = self.gap_filler.generate_questions(missing_fields)
+                questions = self.gap_filler.generate_questions(
+                    missing_fields, letter_type=extracted.get("letter_type", "general")
+                )
                 return {
                     "status": "incomplete",
                     "extracted_info": extracted,

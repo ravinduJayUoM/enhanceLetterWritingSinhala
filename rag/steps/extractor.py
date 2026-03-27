@@ -11,7 +11,8 @@ Strategy:
       3. Merge and return the combined result.
 
 Output schema (always returned, empty strings for missing fields):
-  letter_type, recipient, sender, subject, purpose, details
+  letter_type, recipient, sender, subject, purpose, details,
+  event_date, event_time, event_venue
 """
 
 import os
@@ -38,9 +39,12 @@ _SCHEMA_DEFAULTS: Dict[str, str] = {
     "subject": "",
     "purpose": "",
     "details": "",
+    "event_date": "",
+    "event_time": "",
+    "event_venue": "",
 }
 
-_VALID_LETTER_TYPES = {"application", "request", "complaint", "general"}
+_VALID_LETTER_TYPES = {"application", "request", "complaint", "invitation", "general"}
 
 _EXTRACTION_PROMPT = ChatPromptTemplate.from_template(
     """You are a strict information-extraction engine for Sinhala letter-writing requests.
@@ -58,19 +62,23 @@ no extra keys.
 - Keep honorifics and official titles as written (e.g., "ගරු අග්‍රාමාත්‍යතුමා").
 
 FIELD GUIDANCE
-- letter_type: classify intent into one of: application, request, complaint, general.
+- letter_type: classify intent into one of: application, request, complaint, invitation, general.
   * application = applying for a job/program/position/admission/scholarship.
   * complaint    = reporting a problem and seeking remedy.
   * request      = asking for approval/permission/service/document/leave/meeting/certificate.
+  * invitation   = inviting someone to an event, ceremony, meeting, or occasion.
   * general      = informational/announcement/thanks/other formal correspondence.
-- recipient: who the letter is addressed to (person/role/organization).
-- sender:    who the letter is from (person/role/organization).
-- subject:   short Sinhala topic phrase (2–8 words). Avoid full sentences.
-- purpose:   one Sinhala sentence summarising what the letter is trying to achieve.
-- details:   concise key facts (dates, times, places, IDs, qualifications, amounts, references).
+- recipient:   who the letter is addressed to (person/role/organization).
+- sender:      who the letter is from (person/role/organization).
+- subject:     short Sinhala topic phrase (2–8 words). Avoid full sentences.
+- purpose:     one Sinhala sentence summarising what the letter is trying to achieve.
+- details:     concise key facts (dates, times, places, IDs, qualifications, amounts, references). Leave empty for invitations — use the dedicated event fields below instead.
+- event_date:  (invitation only) the date of the event. Empty string for all other letter types.
+- event_time:  (invitation only) the start time of the event. Empty string for all other letter types.
+- event_venue: (invitation only) the venue/location of the event. Empty string for all other letter types.
 
 Return ONLY JSON with exactly these keys:
-  letter_type, recipient, sender, subject, purpose, details
+  letter_type, recipient, sender, subject, purpose, details, event_date, event_time, event_venue
 
 INPUT:
 <<<USER_TEXT
