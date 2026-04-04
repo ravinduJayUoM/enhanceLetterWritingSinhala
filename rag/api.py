@@ -15,9 +15,12 @@ import sys
 import pandas as pd
 from typing import Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+
+import auth as _auth
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -30,6 +33,30 @@ class UserQuery(BaseModel):
 
 class LetterRequest(BaseModel):
     enhanced_prompt: str
+    sender_info: Optional[Dict[str, str]] = None
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    full_name: str
+    title: Optional[str] = ""
+    address_line1: Optional[str] = ""
+    address_line2: Optional[str] = ""
+    phone: Optional[str] = ""
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    full_name: str
+    title: Optional[str] = ""
+    address_line1: Optional[str] = ""
+    address_line2: Optional[str] = ""
+    phone: Optional[str] = ""
 
 
 class KnowledgeBaseEntry(BaseModel):
@@ -57,6 +84,22 @@ class RatingRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="Sinhala Letter RAG System")
+
+_auth.init_db()
+
+_bearer = HTTPBearer()
+
+
+def _current_user(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
+    """FastAPI dependency — validates JWT and returns the user dict."""
+    username = _auth.decode_token(credentials.credentials)
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    user = _auth.get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found.")
+    return user
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -123,6 +166,53 @@ def _require_pipeline() -> Pipeline:
 # Routes
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
+
+@app.post("/auth/register", status_code=201)
+def register(req: RegisterRequest):
+    if _auth.get_user_by_username(req.username):
+        raise HTTPException(status_code=400, detail="Username already taken.")
+    user = _auth.create_user(
+        username=req.username,
+        password=req.password,
+        full_name=req.full_name,
+        title=req.title or "",
+        address_line1=req.address_line1 or "",
+        address_line2=req.address_line2 or "",
+        phone=req.phone or "",
+    )
+    return {"message": "Account created successfully.", "username": user["username"]}
+
+
+@app.post("/auth/login")
+def login(req: LoginRequest):
+    user = _auth.authenticate_user(req.username, req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    token = _auth.create_access_token(user["username"])
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@app.get("/auth/me")
+def get_me(user: dict = Depends(_current_user)):
+    return {k: v for k, v in user.items() if k != "hashed_password"}
+
+
+@app.put("/auth/me")
+def update_me(req: ProfileUpdateRequest, user: dict = Depends(_current_user)):
+    updated = _auth.update_user_profile(
+        username=user["username"],
+        full_name=req.full_name,
+        title=req.title or "",
+        address_line1=req.address_line1 or "",
+        address_line2=req.address_line2 or "",
+        phone=req.phone or "",
+    )
+    return {k: v for k, v in updated.items() if k != "hashed_password"}
+
+
 @app.get("/")
 async def root():
     return {
@@ -144,7 +234,7 @@ async def extract_info(query: UserQuery):
 
 
 @app.post("/process_query/")
-async def process_query(query: UserQuery):
+async def process_query(query: UserQuery, user: dict = Depends(_current_user)):
     """Run Steps 1–4: extract → gap-fill → retrieve → build prompt."""
     pipeline = _require_pipeline()
     try:
@@ -154,11 +244,11 @@ async def process_query(query: UserQuery):
 
 
 @app.post("/generate_letter/")
-def generate_letter(request: LetterRequest):
+def generate_letter(request: LetterRequest, user: dict = Depends(_current_user)):
     """Step 5 — generate the Sinhala letter from an enhanced prompt."""
     pipeline = _require_pipeline()
     try:
-        letter = pipeline.generate_letter(request.enhanced_prompt)
+        letter = pipeline.generate_letter(request.enhanced_prompt, request.sender_info)
         return {"generated_letter": letter}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Letter generation failed: {exc}")

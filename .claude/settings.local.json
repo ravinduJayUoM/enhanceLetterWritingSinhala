@@ -4,7 +4,11 @@
       "Bash(find /c/MSC/code/enhanceLetterWritingSinhala -type f -name docker* -o -name docker-compose* -o -name *.dockerfile)",
       "Bash(find /c/MSC/code/enhanceLetterWritingSinhala -type f \\\\\\(-name nginx.conf -o -name *.conf -o -name apache* \\\\\\))",
       "Bash(find /c/MSC/code/enhanceLetterWritingSinhala -type f \\\\\\(-name *.sh -o -name deploy* -o -name startup* \\\\\\))",
-      "Bash(find /c/MSC/code/enhanceLetterWritingSinhala/ui -maxdepth 2 -type f \\\\\\(-name *.jsx -o -name *.tsx -o -name *.env* \\\\\\))"
+      "Bash(find /c/MSC/code/enhanceLetterWritingSinhala/ui -maxdepth 2 -type f \\\\\\(-name *.jsx -o -name *.tsx -o -name *.env* \\\\\\))",
+      "Bash(grep -n \"\\\\\\\\chapter\\\\|\\\\\\\\section\\\\|\\\\\\\\subsection\" c:/MSC/code/Ravindu---MSc-Thesis/main.tex)",
+      "Bash(grep -n \"\\\\\\\\begin{verbatim}\\\\|\\\\\\\\end{verbatim}\\\\|\\\\\\\\begin{SinhalaVerbatim}\\\\|\\\\\\\\end{SinhalaVerbatim}\\\\|\\\\\\\\verb\\\\b\\\\|GraphDB\" c:/MSC/code/Ravindu---MSc-Thesis/main.tex)",
+      "Bash(grep -n \"\\\\\\\\verb\\\\b\\\\|GraphDB\" c:/MSC/code/Ravindu---MSc-Thesis/main.tex)",
+      "Bash(grep -n \"\\\\\\\\begin{verbatim}\\\\|\\\\\\\\end{verbatim}\" c:/MSC/code/Ravindu---MSc-Thesis/main.tex)"
     ]
   }
 }

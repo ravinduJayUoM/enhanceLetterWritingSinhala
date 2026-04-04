@@ -83,6 +83,6 @@ class Pipeline:
             "relevant_docs": [doc.page_content for doc in retrieved_docs],
         }
 
-    def generate_letter(self, enhanced_prompt: str) -> str:
+    def generate_letter(self, enhanced_prompt: str, sender_info: Optional[Dict[str, str]] = None) -> str:
         """Step 5 — generate the Sinhala letter from an enhanced prompt."""
-        return self.generator.generate(enhanced_prompt)
+        return self.generator.generate(enhanced_prompt, sender_info)
