@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const API_URL = "http://34.87.52.138:8000";
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
 function StarRating({ onRate }) {
   const [hovered, setHovered] = useState(0);

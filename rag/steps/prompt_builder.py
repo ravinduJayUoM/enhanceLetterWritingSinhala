@@ -8,6 +8,7 @@ ready to be passed to the letter generation LLM.
 Pure logic — no LLM or I/O dependencies.
 """
 
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from langchain_core.documents import Document
@@ -37,6 +38,8 @@ class PromptBuilder:
         info = dict(extracted_info)
         if missing_info_answers:
             info.update(missing_info_answers)
+
+        today = date.today().strftime("%Y %B %d")  # e.g. "2026 April 04"
 
         examples_str = "\n\n---\n\n".join(doc.page_content for doc in retrieved_docs)
 
@@ -77,7 +80,8 @@ Instructions:
 2. Use proper Sinhala grammar, punctuation, and formal register.
 3. Include appropriate formal greetings and closings.
 4. Address all the details mentioned above.
-5. Output ONLY the letter content in Sinhala — no explanations, no English text, no notes.
+5. Use today's date ({today}) in the letter unless a specific date is mentioned in the details above.
+6. Output ONLY the letter content in Sinhala — no explanations, no English text, no notes.
 
 Generate the letter now:"""
 

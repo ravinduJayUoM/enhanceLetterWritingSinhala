@@ -2,21 +2,23 @@ import React, { useState } from "react";
 import MessageList from "./components/MessageList";
 import InputBar from "./components/InputBar";
 import LetterDisplay from "./components/LetterDisplay";
+import GapForm from "./components/GapForm";
+import { getToken } from "./auth";
 
-const API_URL = "http://34.87.52.138:8000";
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
 // ---------------------------------------------------------------------------
 // Stages of the conversation
 // ---------------------------------------------------------------------------
-// "idle"          — waiting for the initial prompt
-// "collecting"    — asking gap-filling questions one by one
-// "generating"    — waiting for the letter generation API call
-// "done"          — letter is ready; user can start over
+// "idle"       — waiting for the initial prompt
+// "gap_form"   — showing a form with all missing fields at once
+// "generating" — waiting for the letter generation API call
+// "done"       — letter is ready; user can start over
 // ---------------------------------------------------------------------------
 
 const WELCOME = "ලිපිය ලිවීම සඳහා ඔබගේ ඉල්ලීම සිංහලෙන් ඇතුළත් කරන්න.";
 
-export default function LetterChat() {
+export default function LetterChat({ profile, onLogout }) {
   const [messages, setMessages] = useState([
     { sender: "system", text: WELCOME },
   ]);
@@ -24,13 +26,12 @@ export default function LetterChat() {
   const [waiting, setWaiting] = useState(false);
   const [letter, setLetter] = useState(null);
 
-  // Gap-filling state
-  const [stage, setStage] = useState("idle"); // idle | collecting | generating | done
-  const [gapFields, setGapFields] = useState([]); // ordered field names still to ask
-  const [gapAnswers, setGapAnswers] = useState({}); // { field: answer }
+  const [stage, setStage] = useState("idle");
+  const [gapFields, setGapFields] = useState([]);      // [{field, question}] for the form
+  const [autoFilled, setAutoFilled] = useState({});    // pre-filled answers (e.g. sender)
   const [originalPrompt, setOriginalPrompt] = useState("");
   const [letterCategory, setLetterCategory] = useState("general");
-  const [ratingStatus, setRatingStatus] = useState(null); // null | saving | indexed | saved | error
+  const [ratingStatus, setRatingStatus] = useState(null);
 
   // ------------------------------------------------------------------
   // Helpers
@@ -45,7 +46,7 @@ export default function LetterChat() {
     setLetter(null);
     setStage("idle");
     setGapFields([]);
-    setGapAnswers({});
+    setAutoFilled({});
     setOriginalPrompt("");
     setLetterCategory("general");
     setRatingStatus(null);
@@ -58,11 +59,23 @@ export default function LetterChat() {
     setStage("generating");
     addMessage("system", "ලිපිය ජනනය කරමින්… මොහොතක් රැඳී සිටින්න.");
     setWaiting(true);
+
+    const senderInfo = profile ? {
+      full_name: profile.full_name || "",
+      title: profile.title || "",
+      address_line1: profile.address_line1 || "",
+      address_line2: profile.address_line2 || "",
+      phone: profile.phone || "",
+    } : null;
+
     try {
       const res = await fetch(`${API_URL}/generate_letter/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enhanced_prompt: enhancedPrompt }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ enhanced_prompt: enhancedPrompt, sender_info: senderInfo }),
       });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
@@ -79,7 +92,7 @@ export default function LetterChat() {
   };
 
   // ------------------------------------------------------------------
-  // Step: process the query (or re-process after gap answers collected)
+  // Step: process the query (or re-process after gap form submitted)
   // ------------------------------------------------------------------
   const processQuery = async (prompt, missingInfo = null) => {
     setWaiting(true);
@@ -89,24 +102,42 @@ export default function LetterChat() {
 
       const res = await fetch(`${API_URL}/process_query/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
 
       if (data.status === "incomplete") {
-        // Convert questions object to an ordered list: [{field, question}, ...]
-        const fields = Object.entries(data.questions).map(([field, question]) => ({
+        let fields = Object.entries(data.questions).map(([field, question]) => ({
           field,
           question,
         }));
-        setGapFields(fields);
-        setGapAnswers({});
-        setStage("collecting");
+
+        // Auto-fill sender from logged-in profile — never ask the user for it
+        const prefilled = {};
+        if (profile?.full_name) {
+          if (fields.some((f) => f.field === "sender")) {
+            prefilled["sender"] = profile.full_name;
+            fields = fields.filter((f) => f.field !== "sender");
+          }
+        }
+
         setLetterCategory(data.extracted_info?.letter_type || "general");
-        // Ask the first question
-        addMessage("system", fields[0].question);
+
+        if (fields.length === 0) {
+          // All gaps auto-filled — go straight to generation
+          await processQuery(prompt, prefilled);
+          return;
+        }
+
+        // Show all remaining questions as a single form
+        setAutoFilled(prefilled);
+        setGapFields(fields);
+        setStage("gap_form");
         setWaiting(false);
       } else {
         // All info present — go straight to generation
@@ -119,6 +150,15 @@ export default function LetterChat() {
       setStage("idle");
       setWaiting(false);
     }
+  };
+
+  // ------------------------------------------------------------------
+  // Gap form submitted — merge answers and re-process
+  // ------------------------------------------------------------------
+  const handleGapFormSubmit = async (answers) => {
+    const allAnswers = { ...autoFilled, ...answers };
+    setStage("generating");
+    await processQuery(originalPrompt, allAnswers);
   };
 
   // ------------------------------------------------------------------
@@ -145,7 +185,7 @@ export default function LetterChat() {
   };
 
   // ------------------------------------------------------------------
-  // Main send handler — behaviour depends on current stage
+  // Main send handler — only active in idle/done stage
   // ------------------------------------------------------------------
   const handleSend = async () => {
     const text = input.trim();
@@ -154,41 +194,14 @@ export default function LetterChat() {
     addMessage("user", text);
     setInput("");
 
-    if (stage === "idle" || stage === "done") {
-      // Fresh query — start from scratch if done
-      if (stage === "done") reset();
-      setOriginalPrompt(text);
-      await processQuery(text);
-      return;
-    }
-
-    if (stage === "collecting") {
-      const currentField = gapFields[0];
-      const updatedAnswers = { ...gapAnswers, [currentField.field]: text };
-      setGapAnswers(updatedAnswers);
-
-      const remaining = gapFields.slice(1);
-      setGapFields(remaining);
-
-      if (remaining.length > 0) {
-        // More questions to ask
-        addMessage("system", remaining[0].question);
-      } else {
-        // All gap answers collected — re-process
-        setWaiting(true);
-        await processQuery(originalPrompt, updatedAnswers);
-      }
-    }
+    if (stage === "done") reset();
+    setOriginalPrompt(text);
+    await processQuery(text);
   };
 
-  // ------------------------------------------------------------------
-  // Input placeholder changes with stage
-  // ------------------------------------------------------------------
   const placeholder =
     stage === "idle" || stage === "done"
       ? "ලිපි ඉල්ලීම සිංහලෙන් ඇතුළත් කරන්න…"
-      : stage === "collecting"
-      ? "පිළිතුර ඇතුළත් කරන්න…"
       : "";
 
   return (
@@ -200,24 +213,48 @@ export default function LetterChat() {
         padding: "0 16px",
       }}
     >
-      <h2 style={{ textAlign: "center", color: "#1a237e", marginBottom: 20 }}>
-        Sinhala Letters LK
-      </h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h2 style={{ color: "#1a237e", margin: 0 }}>SinhalaLipi</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {profile && (
+            <span style={{ fontSize: 13, color: "#555" }}>
+              {profile.full_name}
+            </span>
+          )}
+          <button
+            onClick={onLogout}
+            style={{
+              fontSize: 13, padding: "5px 14px", borderRadius: 6,
+              border: "1px solid #ccc", background: "#fff",
+              cursor: "pointer", color: "#555",
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </div>
 
       <MessageList messages={messages} waiting={waiting} />
 
-      <InputBar
-        value={input}
-        onChange={setInput}
-        onSend={handleSend}
-        disabled={waiting || stage === "generating"}
-        placeholder={placeholder}
-      />
+      {stage === "gap_form" && (
+        <GapForm fields={gapFields} onSubmit={handleGapFormSubmit} />
+      )}
 
-      {stage === "done" && (
-        <p style={{ textAlign: "center", marginTop: 12, color: "#555", fontSize: 13 }}>
-          නව ලිපියක් ලිවීමට ඉහළ කොටුවේ නැවත ඇතුළත් කරන්න.
-        </p>
+      {(stage === "idle" || stage === "done") && (
+        <>
+          <InputBar
+            value={input}
+            onChange={setInput}
+            onSend={handleSend}
+            disabled={waiting}
+            placeholder={placeholder}
+          />
+          {stage === "done" && (
+            <p style={{ textAlign: "center", marginTop: 12, color: "#555", fontSize: 13 }}>
+              නව ලිපියක් ලිවීමට ඉහළ කොටුවේ නැවත ඇතුළත් කරන්න.
+            </p>
+          )}
+        </>
       )}
 
       <LetterDisplay
