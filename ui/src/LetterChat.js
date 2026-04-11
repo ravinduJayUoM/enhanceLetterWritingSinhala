@@ -3,6 +3,7 @@ import MessageList from "./components/MessageList";
 import InputBar from "./components/InputBar";
 import LetterDisplay from "./components/LetterDisplay";
 import GapForm from "./components/GapForm";
+import SystemFeedbackButton from "./components/SystemFeedbackButton";
 import { getToken } from "./auth";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
@@ -164,21 +165,25 @@ export default function LetterChat({ profile, onLogout }) {
   // ------------------------------------------------------------------
   // Rate the generated letter
   // ------------------------------------------------------------------
-  const handleRate = async (stars) => {
+  const handleRate = async (ratingObj) => {
     setRatingStatus("saving");
     try {
-      const res = await fetch(`${API_URL}/rate_letter/`, {
+      const res = await fetch(`${API_URL}/feedback/letter/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
         body: JSON.stringify({
           letter_content: letter,
-          rating: stars,
           original_prompt: originalPrompt,
           letter_category: letterCategory,
+          ...ratingObj,
         }),
       });
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      setRatingStatus(data.added_to_index ? "indexed" : "saved");
+      setRatingStatus(data.added_to_index ? "indexed" : "done");
     } catch {
       setRatingStatus("error");
     }
@@ -262,6 +267,8 @@ export default function LetterChat({ profile, onLogout }) {
         onRate={handleRate}
         ratingStatus={ratingStatus}
       />
+
+      <SystemFeedbackButton />
     </div>
   );
 }

@@ -1,34 +1,5 @@
 import React, { useState, useEffect } from "react";
-
-function StarRating({ onRate }) {
-  const [hovered, setHovered] = useState(0);
-  const [selected, setSelected] = useState(0);
-
-  const handleClick = (star) => {
-    setSelected(star);
-    onRate(star);
-  };
-
-  return (
-    <div style={{ display: "flex", gap: 6, cursor: "pointer", fontSize: 32 }}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <span
-          key={star}
-          onMouseEnter={() => setHovered(star)}
-          onMouseLeave={() => setHovered(0)}
-          onClick={() => handleClick(star)}
-          style={{
-            color: star <= (hovered || selected) ? "#f59e0b" : "#d1d5db",
-            transition: "color 0.15s",
-            pointerEvents: selected ? "none" : "auto",
-          }}
-        >
-          ★
-        </span>
-      ))}
-    </div>
-  );
-}
+import LetterRatingForm from "./LetterRatingForm";
 
 const styles = {
   wrapper: {
@@ -120,6 +91,7 @@ const styles = {
 };
 
 export default function LetterDisplay({ letter, onRate, ratingStatus }) {
+  // onRate now receives the full rating object {quality_overall, ...}
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedLetter, setEditedLetter] = useState(letter);
@@ -186,20 +158,7 @@ export default function LetterDisplay({ letter, onRate, ratingStatus }) {
         <div style={styles.body}>{editedLetter}</div>
       )}
       <div style={{ padding: "16px 20px", borderTop: "1px solid #eceff1", background: "#fafafa" }}>
-        <p style={{ margin: "0 0 10px", fontWeight: 600, color: "#37474f" }}>මෙම ලිපිය ගැන ඔබේ අදහස (rating) ලබා දෙන්න.</p>
-        {ratingStatus === null && <StarRating onRate={onRate} />}
-        {ratingStatus === "saving" && (
-          <span style={{ color: "#6b7280" }}>⏳ ශ්‍රේණිගත කිරීම සුරකිමින්...</span>
-        )}
-        {ratingStatus === "indexed" && (
-          <span style={{ color: "#16a34a", fontWeight: 600 }}>✅ ස්තූතියි! ලිපිය දත්ත ගබඩාවට සාර්ථකව එකතු කරන ලදී.</span>
-        )}
-        {ratingStatus === "saved" && (
-          <span style={{ color: "#2563eb", fontWeight: 600 }}>✅ ස්තූතිවන්ත යි! ඔබගේ ශ්‍රේණිගත කිරීම සුරැකිණි.</span>
-        )}
-        {ratingStatus === "error" && (
-          <span style={{ color: "#dc2626" }}>❌ දෝෂයකි. කරුණාකර නැවත උත්සාහ කරන්න.</span>
-        )}
+        <LetterRatingForm onSubmit={onRate} status={ratingStatus} />
       </div>
     </div>
   );

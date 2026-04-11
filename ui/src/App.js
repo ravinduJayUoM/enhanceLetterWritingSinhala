@@ -3,8 +3,14 @@ import { isLoggedIn, getProfile, logout } from "./auth";
 import Login from "./Login";
 import Register from "./Register";
 import LetterChat from "./LetterChat";
+import Admin from "./Admin";
 
 function App() {
+  // Serve admin dashboard for /admin path
+  if (window.location.pathname.startsWith("/admin")) {
+    return <Admin />;
+  }
+
   const [page, setPage] = useState(isLoggedIn() ? "chat" : "login");
   const [profile, setProfile] = useState(getProfile());
 

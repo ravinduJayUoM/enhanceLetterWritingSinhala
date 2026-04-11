@@ -71,12 +71,31 @@ class KnowledgeBaseEntry(BaseModel):
     source: str = "user_generated"
 
 
-class RatingRequest(BaseModel):
+class LetterRatingRequest(BaseModel):
     letter_content: str
-    rating: int  # 1–5
     original_prompt: str
     letter_category: str = "general"
-    title: Optional[str] = None
+    quality_overall: int    # 1–5
+    quality_match: int      # 1–5
+    quality_language: int   # 1–5
+    quality_structure: int  # 1–5
+    comments: Optional[str] = ""
+
+
+class SystemFeedbackRequest(BaseModel):
+    ease_of_use: int           # 1–5
+    ease_of_describing: int    # 1–5
+    gap_questions_helpful: int # 1–5
+    confidence_in_output: int  # 1–5
+    would_use_again: int       # 1–5
+    liked_most: Optional[str] = ""
+    needs_improvement: Optional[str] = ""
+    issues_faced: Optional[str] = ""
+
+
+# Admin credentials (hardcoded)
+ADMIN_USERNAME = "admin@sinhalalipi.lk"
+ADMIN_PASSWORD = "Admin@123"
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +105,7 @@ class RatingRequest(BaseModel):
 app = FastAPI(title="Sinhala Letter RAG System")
 
 _auth.init_db()
+_auth.init_feedback_db()
 
 _bearer = HTTPBearer()
 
@@ -99,6 +119,23 @@ def _current_user(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) 
     if not user:
         raise HTTPException(status_code=401, detail="User not found.")
     return user
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+def _require_admin(credentials: HTTPAuthorizationCredentials = Depends(_bearer)):
+    """FastAPI dependency — validates admin token (simple base64-encoded credentials check)."""
+    import base64
+    try:
+        decoded = base64.b64decode(credentials.credentials).decode()
+        username, password = decoded.split(":", 1)
+        if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
+            raise HTTPException(status_code=403, detail="Forbidden.")
+    except Exception:
+        raise HTTPException(status_code=403, detail="Forbidden.")
 
 
 app.add_middleware(
@@ -254,21 +291,39 @@ def generate_letter(request: LetterRequest, user: dict = Depends(_current_user))
         raise HTTPException(status_code=500, detail=f"Letter generation failed: {exc}")
 
 
-@app.post("/rate_letter/")
-async def rate_letter(req: RatingRequest):
-    """Save a user rating for a generated letter.
+@app.post("/feedback/letter/")
+async def submit_letter_rating(req: LetterRatingRequest, user: dict = Depends(_current_user)):
+    """Save structured per-letter rating.
 
-    If rating >= 4 the letter is added directly to the FAISS index (no CSV)
-    so it becomes available for future retrievals immediately.
+    If quality_overall >= 4 the letter is also added to the FAISS index
+    so it improves future retrievals immediately.
     """
-    if req.rating < 1 or req.rating > 5:
-        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5.")
+    for field, val in [
+        ("quality_overall", req.quality_overall),
+        ("quality_match", req.quality_match),
+        ("quality_language", req.quality_language),
+        ("quality_structure", req.quality_structure),
+    ]:
+        if not (1 <= val <= 5):
+            raise HTTPException(status_code=400, detail=f"{field} must be between 1 and 5.")
 
-    result: dict = {"rating_saved": True, "added_to_index": False}
+    rating_id = _auth.save_letter_rating(
+        user_id=user["id"],
+        username=user["username"],
+        original_prompt=req.original_prompt,
+        letter_content=req.letter_content,
+        letter_category=req.letter_category,
+        quality_overall=req.quality_overall,
+        quality_match=req.quality_match,
+        quality_language=req.quality_language,
+        quality_structure=req.quality_structure,
+        comments=req.comments or "",
+    )
 
-    if req.rating >= 4:
+    result: dict = {"rating_saved": True, "rating_id": rating_id, "added_to_index": False}
+
+    if req.quality_overall >= 4:
         from datetime import datetime
-
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         prefix_map = {
             "request": "REQ", "apology": "APO", "invitation": "INV",
@@ -278,8 +333,7 @@ async def rate_letter(req: RatingRequest):
         category = req.letter_category.lower()
         prefix = prefix_map.get(category, "GEN")
         new_id = f"UG_{prefix}_{timestamp}"
-        title = req.title or f"{req.letter_category} ලිපිය"
-
+        title = f"{req.letter_category} ලිපිය"
         metadata = {
             "id": new_id,
             "title": title,
@@ -289,19 +343,114 @@ async def rate_letter(req: RatingRequest):
             "source": "user_generated",
             "tags": req.original_prompt[:150],
         }
-        content = f"{title}\n\n{req.letter_content}"
-
         try:
-            index_size = letter_db.add_document(content, metadata)
+            index_size = letter_db.add_document(f"{title}\n\n{req.letter_content}", metadata)
             result["added_to_index"] = True
             result["id"] = new_id
             result["index_size"] = index_size
-            print(f"[API] Rated letter (★{req.rating}) added to FAISS: {new_id}")
+            print(f"[API] High-rated letter (overall={req.quality_overall}) added to FAISS: {new_id}")
         except Exception as exc:
             print(f"[API] FAISS add failed after rating: {exc}")
             result["add_error"] = str(exc)
 
     return result
+
+
+@app.post("/feedback/system/")
+async def submit_system_feedback(req: SystemFeedbackRequest, user: dict = Depends(_current_user)):
+    """Save system usability survey response."""
+    for field, val in [
+        ("ease_of_use", req.ease_of_use),
+        ("ease_of_describing", req.ease_of_describing),
+        ("gap_questions_helpful", req.gap_questions_helpful),
+        ("confidence_in_output", req.confidence_in_output),
+        ("would_use_again", req.would_use_again),
+    ]:
+        if not (1 <= val <= 5):
+            raise HTTPException(status_code=400, detail=f"{field} must be between 1 and 5.")
+
+    feedback_id = _auth.save_system_feedback(
+        user_id=user["id"],
+        username=user["username"],
+        ease_of_use=req.ease_of_use,
+        ease_of_describing=req.ease_of_describing,
+        gap_questions_helpful=req.gap_questions_helpful,
+        confidence_in_output=req.confidence_in_output,
+        would_use_again=req.would_use_again,
+        liked_most=req.liked_most or "",
+        needs_improvement=req.needs_improvement or "",
+        issues_faced=req.issues_faced or "",
+    )
+    return {"feedback_saved": True, "feedback_id": feedback_id}
+
+
+# ---------------------------------------------------------------------------
+# Admin routes
+# ---------------------------------------------------------------------------
+
+@app.post("/admin/login")
+def admin_login(req: AdminLoginRequest):
+    """Returns a base64 admin token if credentials match."""
+    import base64
+    if req.username != ADMIN_USERNAME or req.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin credentials.")
+    token = base64.b64encode(f"{req.username}:{req.password}".encode()).decode()
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@app.get("/admin/stats")
+def admin_stats(_=Depends(_require_admin)):
+    return _auth.get_feedback_stats()
+
+
+@app.get("/admin/letter-ratings")
+def admin_letter_ratings(_=Depends(_require_admin)):
+    return {"data": _auth.get_all_letter_ratings()}
+
+
+@app.get("/admin/system-feedback")
+def admin_system_feedback(_=Depends(_require_admin)):
+    return {"data": _auth.get_all_system_feedback()}
+
+
+@app.get("/admin/export/letter-ratings")
+def admin_export_letter_ratings(_=Depends(_require_admin)):
+    """Return letter ratings as CSV."""
+    import io, csv
+    from fastapi.responses import StreamingResponse
+    rows = _auth.get_all_letter_ratings()
+    if not rows:
+        return {"data": []}
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=letter_ratings.csv"},
+    )
+
+
+@app.get("/admin/export/system-feedback")
+def admin_export_system_feedback(_=Depends(_require_admin)):
+    """Return system feedback as CSV."""
+    import io, csv
+    from fastapi.responses import StreamingResponse
+    rows = _auth.get_all_system_feedback()
+    if not rows:
+        return {"data": []}
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=system_feedback.csv"},
+    )
 
 
 @app.get("/search/")

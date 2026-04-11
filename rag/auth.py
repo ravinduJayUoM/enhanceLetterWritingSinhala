@@ -133,3 +133,129 @@ def decode_token(token: str) -> Optional[str]:
         return payload.get("sub")
     except JWTError:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Feedback database
+# ---------------------------------------------------------------------------
+
+def init_feedback_db():
+    """Create feedback tables if they don't exist."""
+    with get_db_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS letter_ratings (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id           INTEGER,
+                username          TEXT,
+                timestamp         TEXT DEFAULT (datetime('now')),
+                original_prompt   TEXT,
+                letter_content    TEXT,
+                letter_category   TEXT,
+                quality_overall   INTEGER,
+                quality_match     INTEGER,
+                quality_language  INTEGER,
+                quality_structure INTEGER,
+                comments          TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS system_feedback (
+                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id                 INTEGER,
+                username                TEXT,
+                timestamp               TEXT DEFAULT (datetime('now')),
+                ease_of_use             INTEGER,
+                ease_of_describing      INTEGER,
+                gap_questions_helpful   INTEGER,
+                confidence_in_output    INTEGER,
+                would_use_again         INTEGER,
+                liked_most              TEXT,
+                needs_improvement       TEXT,
+                issues_faced            TEXT
+            )
+        """)
+        conn.commit()
+
+
+def save_letter_rating(user_id: int, username: str, original_prompt: str,
+                       letter_content: str, letter_category: str,
+                       quality_overall: int, quality_match: int,
+                       quality_language: int, quality_structure: int,
+                       comments: str = "") -> int:
+    with get_db_connection() as conn:
+        cursor = conn.execute(
+            """INSERT INTO letter_ratings
+               (user_id, username, original_prompt, letter_content, letter_category,
+                quality_overall, quality_match, quality_language, quality_structure, comments)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, username, original_prompt, letter_content, letter_category,
+             quality_overall, quality_match, quality_language, quality_structure, comments),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def save_system_feedback(user_id: int, username: str,
+                         ease_of_use: int, ease_of_describing: int,
+                         gap_questions_helpful: int, confidence_in_output: int,
+                         would_use_again: int,
+                         liked_most: str = "", needs_improvement: str = "",
+                         issues_faced: str = "") -> int:
+    with get_db_connection() as conn:
+        cursor = conn.execute(
+            """INSERT INTO system_feedback
+               (user_id, username, ease_of_use, ease_of_describing,
+                gap_questions_helpful, confidence_in_output, would_use_again,
+                liked_most, needs_improvement, issues_faced)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, username, ease_of_use, ease_of_describing,
+             gap_questions_helpful, confidence_in_output, would_use_again,
+             liked_most, needs_improvement, issues_faced),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_all_letter_ratings() -> list:
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM letter_ratings ORDER BY timestamp DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_system_feedback() -> list:
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM system_feedback ORDER BY timestamp DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_feedback_stats() -> dict:
+    with get_db_connection() as conn:
+        lr = conn.execute("""
+            SELECT
+                COUNT(*) as total,
+                ROUND(AVG(quality_overall), 2)   as avg_overall,
+                ROUND(AVG(quality_match), 2)      as avg_match,
+                ROUND(AVG(quality_language), 2)   as avg_language,
+                ROUND(AVG(quality_structure), 2)  as avg_structure
+            FROM letter_ratings
+        """).fetchone()
+        sf = conn.execute("""
+            SELECT
+                COUNT(*) as total,
+                ROUND(AVG(ease_of_use), 2)           as avg_ease_of_use,
+                ROUND(AVG(ease_of_describing), 2)    as avg_ease_of_describing,
+                ROUND(AVG(gap_questions_helpful), 2) as avg_gap_questions,
+                ROUND(AVG(confidence_in_output), 2)  as avg_confidence,
+                ROUND(AVG(would_use_again), 2)       as avg_would_use_again
+            FROM system_feedback
+        """).fetchone()
+        users = conn.execute("SELECT COUNT(*) as total FROM users").fetchone()
+    return {
+        "users": {"total": users["total"]},
+        "letter_ratings": dict(lr),
+        "system_feedback": dict(sf),
+    }
