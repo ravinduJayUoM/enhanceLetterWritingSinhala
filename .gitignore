@@ -1,3 +1,7 @@
+# Secrets — never commit
+.env
+rag/.env
+
 # Ignore specific directories
 /embeddings/
 /processed_data/

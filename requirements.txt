@@ -1,0 +1,29 @@
+# Web
+fastapi>=0.110,<0.116
+uvicorn[standard]>=0.27,<0.32
+pydantic>=2.5,<3
+python-multipart>=0.0.9
+
+# Auth
+bcrypt>=4.1,<5
+python-jose[cryptography]>=3.3,<4
+
+# Data
+pandas>=2.1,<3
+numpy>=1.26,<3
+
+# LangChain (loose pins — these move together)
+langchain>=0.2,<0.4
+langchain-core>=0.2,<0.4
+langchain-community>=0.2,<0.4
+langchain-text-splitters>=0.2,<0.4
+langchain-openai>=0.1,<0.3
+langchain-google-genai>=1.0,<3
+
+# Embeddings + vector store
+sentence-transformers>=2.7,<5
+faiss-cpu>=1.7,<2
+
+# Torch (CPU). Pinned major to keep wheel size predictable.
+torch>=2.2,<3
+transformers>=4.40,<5

@@ -23,7 +23,11 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-this-secret-in-production-env")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.db")
+DB_PATH = os.getenv(
+    "USERS_DB_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.db"),
+)
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 
 # ---------------------------------------------------------------------------

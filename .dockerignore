@@ -1,0 +1,41 @@
+.git
+.gitignore
+.claude
+.DS_Store
+**/.DS_Store
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Local virtualenvs
+rag/venv
+venv
+.venv
+
+# Frontend build artifacts (not used by API)
+ui/node_modules
+ui/build
+ui/dist
+
+# Tests, scripts, docs not needed at runtime
+tests
+scripts
+docs
+test_api.html
+test_azure_connection.py
+
+# Runtime state — must NOT be baked into the image
+rag/.env
+rag/users.db
+rag/users.db-journal
+rag/faiss_index
+rag/chroma_db
+
+# IDE
+.idea
+.vscode
+
+# Docker artifacts themselves
+Dockerfile
+docker-compose.yml
+.dockerignore
