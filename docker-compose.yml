@@ -1,0 +1,25 @@
+services:
+  api:
+    # Local builds: `docker compose build` uses this Dockerfile.
+    # Production VM: pulls the image from ghcr.io and ignores `build`.
+    image: ghcr.io/ravinduhs/sinhala-letter-rag:latest
+    build: .
+    container_name: sinhala-letter-rag
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - users_db:/app/rag/db
+      - faiss_index:/app/rag/faiss_index
+      - hf_cache:/cache/huggingface
+    # Override the SQLite DB path so it lands on the named volume,
+    # not inside the image layer at /app/rag/users.db.
+    environment:
+      - USERS_DB_PATH=/app/rag/db/users.db
+
+volumes:
+  users_db:
+  faiss_index:
+  hf_cache:
